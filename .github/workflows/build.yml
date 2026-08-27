@@ -45,7 +45,7 @@ jobs:
                 mavenCentral()
             }
             dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.1'
+                classpath 'com.android.tools.build:gradle:7.4.2'
             }
         }
         allprojects {
@@ -62,11 +62,11 @@ jobs:
         }
         android {
             namespace 'com.example.botapp'
-            compileSdk 34
+            compileSdk 33
             defaultConfig {
                 applicationId "com.example.botapp"
                 minSdk 21
-                targetSdk 34
+                targetSdk 33
                 versionCode 1
                 versionName "1.0"
             }
@@ -90,8 +90,13 @@ jobs:
         }
         EOF
 
-    - name: Build with Gradle
-      run: gradle assembleDebug
+    - name: Setup Gradle Wrapper
+      run: |
+        gradle wrapper --gradle-version 7.5
+        chmod +x gradlew
+
+    - name: Build with Gradle Wrapper
+      run: ./gradlew assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
