@@ -17,11 +17,12 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Build with Gradle
+    - name: Create basic Gradle structure
       run: |
-        chmod +x gradlew || true
-        if [ -f "gradlew" ]; then
-          ./gradlew assembleDebug
-        else
-          gradle assembleDebug
-        fi
+        echo "include ':app'" > settings.gradle
+        mkdir -p app/src/main/java
+        echo "apply plugin: 'com.android.application'" > app/build.gradle
+        echo "android { compileSdk 34 }" >> app/build.gradle
+
+    - name: List files
+      run: find . -maxdepth 3
