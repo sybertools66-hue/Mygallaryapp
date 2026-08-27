@@ -17,12 +17,107 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Create basic Gradle structure
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Create basic Android project files
       run: |
         echo "include ':app'" > settings.gradle
-        mkdir -p app/src/main/java
-        echo "apply plugin: 'com.android.application'" > app/build.gradle
-        echo "android { compileSdk 34 }" >> app/build.gradle
+        mkdir -p app/src/main/java/com/example/mygallaryapp
+        mkdir -p app/src/main/res
+        
+        # AndroidManifest.xml
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.example.mygallaryapp">
+            <application
+                android:label="My Gallery App"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
 
-    - name: List files
-      run: find . -maxdepth 3
+        # build.gradle (Project)
+        cat << 'EOF' > build.gradle
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+            }
+        }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOF
+
+        # build.gradle (App)
+        cat << 'EOF' > app/build.gradle
+        plugins {
+            id 'com.android.application'
+        }
+        android {
+            namespace 'com.example.mygallaryapp'
+            compileSdk 34
+            defaultConfig {
+                applicationId "com.example.mygallaryapp"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+        EOF
+
+        # MainActivity.java
+        cat << 'EOF' > app/src/main/java/com/example/mygallaryapp/MainActivity.java
+        package com.example.mygallaryapp;
+        import android.app.Activity;
+        import android.os.Bundle;
+        import android.widget.TextView;
+
+        public class MainActivity extends Activity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                TextView tv = new TextView(this);
+                tv.setText("Hello from GitHub Actions APK!");
+                setContentView(tv);
+            }
+        }
+        EOF
+
+        # gradle-wrapper properties
+        mkdir -p gradle/wrapper
+        cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+        pathOrder=1
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        EOF
+
+        gradle wrapper
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
