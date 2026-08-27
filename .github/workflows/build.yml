@@ -53,7 +53,7 @@ jobs:
                 mavenCentral()
             }
             dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.0'
+                classpath 'com.android.tools.build:gradle:7.4.2'
             }
         }
         allprojects {
@@ -71,11 +71,11 @@ jobs:
         }
         android {
             namespace 'com.example.mygallaryapp'
-            compileSdk 34
+            compileSdk 33
             defaultConfig {
                 applicationId "com.example.mygallaryapp"
                 minSdk 21
-                targetSdk 34
+                targetSdk 33
                 versionCode 1
                 versionName "1.0"
             }
