@@ -20,6 +20,8 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Build with Gradle
-      run: |
-        echo "Building app..."
+    - name: Compile Java to Class
+      run: javac MainActivity.java
+
+    - name: List files
+      run: ls -la
