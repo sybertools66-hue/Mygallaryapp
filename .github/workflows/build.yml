@@ -1,4 +1,4 @@
-name: Build Cloudflare Gallery APK
+name: Simple Android Build
 
 on:
   push:
@@ -12,33 +12,23 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Create Android Project Files
+    - name: Create Minimal Android Project
       run: |
         echo "include ':app'" > settings.gradle
-        mkdir -p app/src/main/java/com/example/mygallaryapp
+        mkdir -p app/src/main/java/com/example/app
         mkdir -p app/src/main/res
         
-        # AndroidManifest.xml
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.example.mygallaryapp">
-            
+            package="com.example.app">
             <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-
-            <application
-                android:label="My Gallery App"
-                android:usesCleartextTraffic="true"
-                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                <activity
-                    android:name=".MainActivity"
-                    android:exported="true">
+            <application android:label="GalleryBot">
+                <activity android:name=".MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
@@ -48,7 +38,6 @@ jobs:
         </manifest>
         EOF
 
-        # build.gradle (Project)
         cat << 'EOF' > build.gradle
         buildscript {
             repositories {
@@ -67,74 +56,48 @@ jobs:
         }
         EOF
 
-        # build.gradle (App)
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
         }
         android {
-            namespace 'com.example.mygallaryapp'
+            namespace 'com.example.app'
             compileSdk 33
             defaultConfig {
-                applicationId "com.example.mygallaryapp"
+                applicationId "com.example.app"
                 minSdk 21
                 targetSdk 33
                 versionCode 1
                 versionName "1.0"
             }
         }
-        dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.squareup.okhttp3:okhttp:4.9.3'
-        }
         EOF
 
-        # MainActivity.java (Cloudflare Worker එකට ඩේටා යවන කෝඩ් එක)
-        cat << 'EOF' > app/src/main/java/com/example/mygallaryapp/MainActivity.java
-        package com.example.mygallaryapp;
-
-        import android.Manifest;
+        cat << 'EOF' > app/src/main/java/com/example/app/MainActivity.java
+        package com.example.app;
         import android.app.Activity;
-        import android.content.pm.PackageManager;
         import android.os.Bundle;
         import android.widget.TextView;
-        import androidx.core.app.ActivityCompat;
-        import androidx.core.content.ContextCompat;
 
         public class MainActivity extends Activity {
-            private static final int PERMISSION_REQUEST_CODE = 100;
-
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 TextView tv = new TextView(this);
-                tv.setText("Connecting to Cloudflare Worker...");
+                tv.setText("Gallery Bot App Active!");
                 setContentView(tv);
-
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this, new String[]{
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.READ_MEDIA_IMAGES
-                    }, PERMISSION_REQUEST_CODE);
-                } else {
-                    tv.setText("Gallery & Worker Connected!");
-                }
             }
         }
         EOF
 
-    - name: Download Gradle
+    - name: Build APK
       run: |
-        wget https://services.gradle.org/distributions/gradle-7.5-bin.zip
-        unzip -q gradle-7.5-bin.zip
-        echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
+        chmod +x gradlew || true
+        # Gradle ඔටෝමැටිකින් ඩවුන්ලෝඩ් කර බිල්ඩ් කිරීම
+        gradle wrapper --gradle-version 7.5
+        ./gradlew assembleDebug
 
-    - name: Build Debug APK
-      env:
-        CF_URL: ${{ secrets.CF_WORKER_URL }}
-      run: gradle assembleDebug
-
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
