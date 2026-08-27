@@ -17,11 +17,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Compile Java to Class
-      run: javac MainActivity.java
-
-    - name: List files
-      run: ls -la
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew || true
+        if [ -f "gradlew" ]; then
+          ./gradlew assembleDebug
+        else
+          gradle assembleDebug
+        fi
