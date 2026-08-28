@@ -74,6 +74,7 @@ jobs:
     - name: Build with Gradle
       run: |
         gradle wrapper
+        ./gradlew clean
         ./gradlew assembleDebug
 
     - name: Upload APK
