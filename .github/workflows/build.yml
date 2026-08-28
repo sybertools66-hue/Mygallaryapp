@@ -37,23 +37,28 @@ jobs:
         </manifest>
         EOF
 
-        cat << 'EOF' > build.gradle
-        allprojects {
+        cat << 'EOF' > settings.gradle
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
             repositories {
                 google()
                 mavenCentral()
             }
         }
-        EOF
-
-        cat << 'EOF' > settings.gradle
         rootProject.name = "Mygallaryapp"
         include ':app'
         EOF
 
         cat << 'EOF' > app/build.gradle
         plugins {
-            id 'com.android.application'
+            id 'com.android.application' version '8.1.1'
         }
         android {
             namespace 'com.example.botapp'
@@ -73,8 +78,8 @@ jobs:
 
     - name: Build with Gradle
       run: |
-        gradle wrapper --gradle-version 7.5
-        ./gradlew assembleDebug --stacktrace
+        gradle wrapper --gradle-version 8.2
+        ./gradlew assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
