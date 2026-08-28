@@ -22,8 +22,7 @@ jobs:
         mkdir -p app/src/main/java/com/example/botapp
         cp MainActivity.java app/src/main/java/com/example/botapp/ || true
         
-        # මූලික AndroidManifest.xml ෆයිල් එක සෑදීම
-        cat << 'EOF' > app/src/main/java/AndroidManifest.xml
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.example.botapp">
             <application android:label="BotApp">
@@ -38,7 +37,6 @@ jobs:
         </manifest>
         EOF
 
-        # අවශ්‍ය Gradle ෆයිල්ස් ස්වයංක්‍රීයව සෑදීම
         cat << 'EOF' > build.gradle
         allprojects {
             repositories {
@@ -68,12 +66,9 @@ jobs:
                 versionName "1.0"
             }
         }
-                dependencies {
+        dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.8.0'
-            implementation 'androidx.work:work-runtime:2.8.1'
         }
-
         EOF
 
     - name: Build with Gradle
