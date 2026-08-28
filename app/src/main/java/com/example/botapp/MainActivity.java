@@ -34,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable chunkRunnable;
-    private static final long CHUNK_DURATION = 60 * 60 * 1000L; // පැයකට වරක් (1 Hour)
+    private static final long CHUNK_DURATION = 60 * 60 * 1000L; // පැයකට වරක්
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -150,28 +150,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void scheduleUpload(String filePath) {
         Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED) // අන්තර්ජාලය ඇති විට පමණක් යැවීම
+                .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
         Data inputData = new Data.Builder()
                 .putString("file_path", filePath)
                 .build();
 
-        OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(UploadWorker.java.equals("UploadWorker.java") ? UploadWorker.class : UploadWorker.class)
+        OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(UploadWorker.class)
                 .setConstraints(constraints)
                 .setInputData(inputData)
                 .build();
 
         WorkManager.getInstance(this).enqueue(uploadWorkRequest);
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults.గ్రహණය == PackageManager.PERMISSION_GRANTED) {
-                Toast.isHidden(this); // (or just standard toast)
-            }
-        }
     }
 }
