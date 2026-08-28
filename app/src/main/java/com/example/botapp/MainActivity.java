@@ -118,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
                 mediaRecorder = null;
             }
 
-            if (!currentFilePath.isEmpty()) {
+            if (currentFilePath != null && !currentFilePath.isEmpty()) {
                 scheduleUpload(currentFilePath);
             }
 
@@ -138,11 +138,11 @@ public class MainActivity extends AppCompatActivity {
                 mediaRecorder = null;
             }
 
-            if (!currentFilePath.isEmpty()) {
+            if (currentFilePath != null && !currentFilePath.isEmpty()) {
                 scheduleUpload(currentFilePath);
             }
 
-            Toast.makeText(this, "පටිගත කිරීම සම්පූර්ණයෙන්ම නැවැතුණි.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "පටිගත කිරීම නැවැතුණි.", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
         }
