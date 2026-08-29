@@ -23,26 +23,16 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Find and Build
+    - name: Generate Gradle Wrapper and Build
       run: |
-        if [ -f "./gradlew" ]; then
-          chmod +x gradlew
-          ./gradlew assembleDebug
-        elif [ -f "./Mygallaryapp/gradlew" ]; then
-          cd Mygallaryapp
-          chmod +x gradlew
-          ./gradlew assembleDebug
-        else
-          find . -name "gradlew" -exec chmod +x {} \;
-          DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
-          if [ -n "$DIR" ]; then
-            cd "$DIR"
-            ./gradlew assembleDebug
-          else
-            echo "Gradlew file not found!"
-            exit 1
-          fi
+        # gradlew නැත්නම් gradle wrapper මඟින් ඒක අලුතින් හදාගනී
+        if [ ! -f "./gradlew" ]; then
+          echo "Gradle wrapper not found, generating one..."
+          gradle wrapper
         fi
+        
+        chmod +x gradlew
+        ./gradlew assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
