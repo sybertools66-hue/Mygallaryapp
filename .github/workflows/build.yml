@@ -20,17 +20,8 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Generate Gradle Wrapper and Build
+    - name: Build with Gradle
       run: |
-        # gradlew නැත්නම් gradle wrapper මඟින් ඒක අලුතින් හදාගනී
-        if [ ! -f "./gradlew" ]; then
-          echo "Gradle wrapper not found, generating one..."
-          gradle wrapper
-        fi
-        
         chmod +x gradlew
         ./gradlew assembleDebug
 
@@ -38,4 +29,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: '**/build/outputs/apk/debug/app-debug.apk'
+        path: app/build/outputs/apk/debug/app-debug.apk
