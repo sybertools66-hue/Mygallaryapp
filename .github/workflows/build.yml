@@ -23,14 +23,31 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
+    - name: Find and Build
+      run: |
+        # gradlew ෆයිල් එක තියෙන තැන හොයාගෙන බිල්ඩ් කිරීම
+        if [ -f "./gradlew" ]; then
+          chmod +x gradlew
+          ./gradlew assembleDebug
+        elif [ -f "./Mygallaryapp/gradlew" ]; then
+          cd Mygallaryapp
+          chmod +x gradlew
+          ./gradlew assembleDebug
+        else
+          # වෙනත් ෆෝල්ඩරයක ඇත්නම් සොයා බලයි
+          find . -name "gradlew" -exec chmod +x {} \;
+          DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
+          if [ -n "$DIR" ]; then
+            cd "$DIR"
+            ./gradlew assembleDebug
+          else
+            echo "Gradlew file not found!"
+            exit 1
+          fi
+        fi
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: '**/build/outputs/apk/debug/app-debug.apk'
