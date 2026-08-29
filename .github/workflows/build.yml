@@ -30,8 +30,7 @@ jobs:
         cache-read-only: false
 
     - name: Build with Gradle
-      run: gradle assembleDebug
-      working-directory: .
+      run: cd Mygallaryapp && gradle assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
