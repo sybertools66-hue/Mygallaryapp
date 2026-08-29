@@ -27,13 +27,6 @@ jobs:
         gradle-version: '8.5'
         cache-read-only: false
 
-    - name: Create missing AndroidManifest if needed
-      run: |
-        mkdir -p app/src/main
-        if [ ! -f app/src/main/AndroidManifest.xml ]; then
-          echo '<manifest package="com.example.mygallaryapp"></manifest>' > app/src/main/AndroidManifest.xml
-        fi
-
     - name: Build with Gradle
       run: gradle assembleDebug
 
