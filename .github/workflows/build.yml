@@ -25,7 +25,6 @@ jobs:
 
     - name: Find and Build
       run: |
-        # gradlew ෆයිල් එක තියෙන තැන හොයාගෙන බිල්ඩ් කිරීම
         if [ -f "./gradlew" ]; then
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -34,7 +33,6 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
         else
-          # වෙනත් ෆෝල්ඩරයක ඇත්නම් සොයා බලයි
           find . -name "gradlew" -exec chmod +x {} \;
           DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
           if [ -n "$DIR" ]; then
