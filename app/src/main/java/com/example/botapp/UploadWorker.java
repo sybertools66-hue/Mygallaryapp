@@ -4,6 +4,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
+import androidx.work.ListenableWorker.Result;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,12 +28,12 @@ public class UploadWorker extends Worker {
     public Result doWork() {
         String filePath = getInputData().getString("file_path");
         if (filePath == null) {
-            return Worker.Result.failure();
+            return Result.failure();
         }
 
         File file = new File(filePath);
         if (!file.exists()) {
-            return Worker.Result.success();
+            return Result.success();
         }
 
         try {
@@ -63,13 +64,13 @@ public class UploadWorker extends Worker {
                 if (file.exists()) {
                     file.delete();
                 }
-                return Worker.Result.success();
+                return Result.success();
             } else {
-                return Worker.Result.retry();
+                return Result.retry();
             }
         } catch (IOException e) {
             e.printStackTrace();
-            return Worker.Result.retry();
+            return Result.retry();
         }
     }
 }
