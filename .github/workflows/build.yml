@@ -3,86 +3,33 @@ name: Android Build
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Create basic project structure
-      run: |
-        mkdir -p app/src/main/java/com/example/botapp
-        cp MainActivity.java app/src/main/java/com/example/botapp/ || true
-        
-        cat << 'EOF' > app/src/main/AndroidManifest.xml
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.example.botapp">
-            <application android:label="BotApp">
-                <activity android:name=".MainActivity"
-                    android:exported="true">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-        </manifest>
-        EOF
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
 
-        cat << 'EOF' > settings.gradle
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        rootProject.name = "Mygallaryapp"
-        include ':app'
-        EOF
-
-        cat << 'EOF' > app/build.gradle
-        plugins {
-            id 'com.android.application' version '8.1.1'
-        }
-        android {
-            namespace 'com.example.botapp'
-            compileSdk 33
-            defaultConfig {
-                applicationId "com.example.botapp"
-                minSdk 24
-                targetSdk 33
-                versionCode 1
-                versionName "1.0"
-            }
-        }
-        dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-        }
-        EOF
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: |
-        gradle wrapper --gradle-version 8.2
-        ./gradlew assembleDebug
+      run: ./gradlew assembleDebug
 
     - name: Upload APK
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
