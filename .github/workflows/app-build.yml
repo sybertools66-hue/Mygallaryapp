@@ -29,6 +29,7 @@ jobs:
 
     - name: Build with Gradle
       run: gradle assembleDebug
+      working-directory: Mygallaryapp
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
